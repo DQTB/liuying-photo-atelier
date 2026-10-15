@@ -9,10 +9,13 @@ function saveActiveEdits(){
 }
 function validPhotos(){return batchState.photos.filter(p=>p.ready&&!p.error)}
 function renderQueue(){
+ $('choosePhoto').disabled=batchState.importing;
+ $('choosePhoto').setAttribute('aria-busy',String(batchState.importing));
+ $('choosePhoto').setAttribute('aria-label',batchState.photos.length?'更换照片，支持多选':'选择照片，支持多选');
  const strip=$('photoStrip'),scroll=strip.scrollLeft;strip.replaceChildren();
  $('photoQueue').hidden=!batchState.photos.length;
  $('queueCount').textContent=`已选 ${batchState.photos.length} 张`;
- if(activeRecord()&&!state.loading){$('demoLabel').textContent=`第 ${batchState.photos.findIndex(p=>p.id===batchState.activeId)+1} / ${batchState.photos.length} 张 · 本机处理`;$('fileName').textContent=`${batchState.photos.length} 张照片 · 点此重新选择`}
+ if(activeRecord()&&!state.loading){$('demoLabel').textContent=`第 ${batchState.photos.findIndex(p=>p.id===batchState.activeId)+1} / ${batchState.photos.length} 张 · 本机处理`;$('fileName').textContent=`已选 ${batchState.photos.length} 张 · 点击预览更换照片`}
  $('addPhotos').disabled=batchState.importing;$('clearPhotos').disabled=batchState.importing;
  $('photo').disabled=batchState.importing;
  const many=batchState.photos.length>1,valid=validPhotos().length;
@@ -54,7 +57,7 @@ async function activateRecord(id,providedImage=null){
   if(token!==batchState.previewToken){releasePreview(img);return}
   releasePreview(state.image);state.image=img;state.glassCache=null;state.demo=false;
   keys.forEach(k=>$(k).value=record.fields[k]||'');$('title').value=record.title;$('brand').value=record.brand;
-  $('fileName').textContent=`${batchState.photos.length} 张照片 · 点此重新选择`;
+  $('fileName').textContent=`已选 ${batchState.photos.length} 张 · 点击预览更换照片`;
   $('demoLabel').textContent=`第 ${batchState.photos.indexOf(record)+1} / ${batchState.photos.length} 张 · 本机处理`;
   $('exifBadge').textContent=record.exifCount?`已读取 ${record.exifCount} 项`:'未检测到参数';
   if(!record.exifCount)$('metadata').open=true;
@@ -64,7 +67,7 @@ async function activateRecord(id,providedImage=null){
 }
 function showDemo(){
  batchState.previewToken++;batchState.activeId=null;state.importId++;state.revision++;clearTimeout(state.timer);releasePreview(state.image);state.image=batchState.demoImage||state.demoImage;state.glassCache=null;state.demo=true;state.loading=false;setPhotoInputsDisabled(false);
- keys.forEach(k=>$(k).value=demo[k]);$('title').value='山间来信';$('brand').value='auto';$('fileName').textContent='选择照片，支持多选';$('demoLabel').textContent='示意作品 · 非真实拍摄参数';$('exifBadge').textContent='示例参数';renderQueue();scheduleRender();
+ keys.forEach(k=>$(k).value=demo[k]);$('title').value='山间来信';$('brand').value='auto';$('fileName').textContent='点击预览，选择照片';$('demoLabel').textContent='示意作品 · 非真实拍摄参数';$('exifBadge').textContent='示例参数';renderQueue();scheduleRender();
 }
 function disposeRecords(){for(const record of batchState.photos)if(record.thumbURL)URL.revokeObjectURL(record.thumbURL);batchState.photos=[]}
 function removeRecord(id){
@@ -103,6 +106,7 @@ async function importPhotos(files,append=false){
   status(`已加入 ${added} 张照片${errors?`；${errors} 张无法读取，请移除或重选`:''}${omitted?`；超出单批限制的 ${omitted} 张未加入`:''}。${added?'点击缩略图可逐张查看。':''}`,errors>0||omitted>0);
  }
 }
+$('choosePhoto').onclick=()=>{if(!batchState.importing&&!state.exporting)$('photo').click()};
 $('photo').addEventListener('change',event=>{const files=Array.from(event.target.files);event.target.value='';importPhotos(files)});
 $('morePhotos').addEventListener('change',event=>{const files=Array.from(event.target.files);event.target.value='';importPhotos(files,true)});
 $('addPhotos').onclick=()=>$('morePhotos').click();
