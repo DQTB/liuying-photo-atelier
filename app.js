@@ -18,6 +18,15 @@ function draw(target,longEdge,source={}){
  const title=source.title??$('title').value.trim(),author=source.author??$('author').value.trim();
  const brand=source.brand??$('brand').value,brandMode=source.brandMode??$('brandMode').value;
  const ratio=img.naturalHeight/img.naturalWidth;
+ if(state.style==='overlay'){
+  const baseW=1000,baseH=baseW*ratio,scale=longEdge/Math.max(baseW,baseH);
+  target.width=Math.round(baseW*scale);target.height=Math.round(baseH*scale);
+  const ctx=target.getContext('2d');if(!ctx)throw Error('无法建立绘图画布，请重新打开页面。');
+  ctx.scale(scale,scale);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  ctx.drawImage(img,0,0,baseW,baseH);
+  drawPhotoWatermark(ctx,img,baseW,baseH,{fields,title,author,brand,brandMode});
+  return {width:target.width,height:target.height};
+ }
  const baseW=1000, pad=state.style==='editorial'?75:state.style==='film'?30:55;
  const photoW=baseW-pad*2,photoH=photoW*ratio,top=state.style==='film'?42:pad;
  const footer=(state.style==='editorial'?240:state.style==='film'?160:185)+(fields.capturedAt?30:0);
@@ -26,7 +35,7 @@ function draw(target,longEdge,source={}){
  target.width=Math.round(baseW*scale);target.height=Math.round(baseH*scale);
  const ctx=target.getContext('2d');if(!ctx)throw Error('无法建立绘图画布，请重新打开页面。');
  ctx.scale(scale,scale);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
- const {paper,dark,ink,muted,accent}=frameTheme();
+ const {paper,dark,ink,muted,accent}=frameTheme(img);
  drawFrameBackground(ctx,img,{baseW,baseH,pad,top,photoW,photoH},paper);ctx.drawImage(img,pad,top,photoW,photoH);
  if(state.color==='glass'){ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=1;ctx.strokeRect(pad-.5,top-.5,photoW+1,photoH+1)}
  const y=top+photoH,lens=fields.lens;

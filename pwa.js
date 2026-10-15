@@ -16,15 +16,17 @@ function readPreferences(){
 function restorePreferences(){
  const p=readPreferences();
  keys.forEach(key=>{if(typeof p.visible?.[key]==='boolean')state.visible[key]=p.visible[key];$('show-'+key).checked=state.visible[key]});
- if(['gallery','editorial','film'].includes(p.style)){state.style=p.style;document.querySelectorAll('[data-style]').forEach(button=>{const active=button.dataset.style===state.style;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))})}
- if(p.color==='glass'||frameColors.some(c=>c[1]===p.color))state.color=p.color;
+ if(['gallery','editorial','film','overlay'].includes(p.style)){state.style=p.style;document.querySelectorAll('[data-style]').forEach(button=>{const active=button.dataset.style===state.style;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))})}
+ if(['glass','match'].includes(p.color)||frameColors.some(c=>c[1]===p.color))state.color=p.color;
+ if(['auto','white','black'].includes(p.overlayInk))$('overlayInk').value=p.overlayInk;
+ if(Number.isFinite(p.overlayOpacity))$('overlayOpacity').value=Math.max(30,Math.min(100,p.overlayOpacity));
  if(['logo','text'].includes(p.brandMode))$('brandMode').value=p.brandMode;
  if(typeof p.author==='string')$('author').value=p.author.slice(0,50);
  if(Number.isFinite(p.glassStrength))$('glassStrength').value=Math.max(0,Math.min(100,p.glassStrength));
  scheduleRender();
 }
 function savePreferences(){
- try{localStorage.setItem('liuying-preferences-v1',JSON.stringify({visible:state.visible,style:state.style,color:state.color,brandMode:$('brandMode').value,author:$('author').value,glassStrength:Number($('glassStrength').value)}))}catch{}
+ try{localStorage.setItem('liuying-preferences-v1',JSON.stringify({visible:state.visible,overlayInk:$('overlayInk').value,overlayOpacity:Number($('overlayOpacity').value),style:state.style,color:state.color,brandMode:$('brandMode').value,author:$('author').value,glassStrength:Number($('glassStrength').value)}))}catch{}
 }
 document.querySelector('.workspace').addEventListener('change',savePreferences);
 document.querySelectorAll('[data-style],[data-color]').forEach(button=>button.addEventListener('click',savePreferences));
