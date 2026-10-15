@@ -13,42 +13,43 @@ function fitText(ctx,text,x,y,max,size,color,font='sans-serif',align='left'){
 }
 function draw(target,longEdge,source={}){
  const img=source.image||state.image;if(!img)return;
+ const appearance=source.appearance||captureAppearance(),{style,color,visible}=appearance;
  const values=source.fields||Object.fromEntries(keys.map(k=>[k,$(k).value.trim()]));
- const fields=Object.fromEntries(keys.map(k=>[k,state.visible[k]?values[k]||'':'']));
- const title=source.title??$('title').value.trim(),author=source.author??$('author').value.trim();
- const brand=source.brand??$('brand').value,brandMode=source.brandMode??$('brandMode').value;
+ const fields=Object.fromEntries(keys.map(k=>[k,visible[k]?values[k]||'':'']));
+ const title=source.title??$('title').value.trim(),author=source.author??appearance.author;
+ const brand=source.brand??$('brand').value,brandMode=source.brandMode??appearance.brandMode;
  const ratio=img.naturalHeight/img.naturalWidth;
- if(state.style==='overlay'){
+ if(style==='overlay'){
   const baseW=1000,baseH=baseW*ratio,scale=longEdge/Math.max(baseW,baseH);
   target.width=Math.round(baseW*scale);target.height=Math.round(baseH*scale);
   const ctx=target.getContext('2d');if(!ctx)throw Error('无法建立绘图画布，请重新打开页面。');
   ctx.scale(scale,scale);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
   ctx.drawImage(img,0,0,baseW,baseH);
-  drawPhotoWatermark(ctx,img,baseW,baseH,{fields,title,author,brand,brandMode});
+  drawPhotoWatermark(ctx,img,baseW,baseH,{fields,title,author,brand,brandMode,appearance});
   return {width:target.width,height:target.height};
  }
- const baseW=1000, pad=state.style==='editorial'?75:state.style==='film'?30:55;
- const photoW=baseW-pad*2,photoH=photoW*ratio,top=state.style==='film'?42:pad;
- const footer=(state.style==='editorial'?240:state.style==='film'?160:185)+(fields.capturedAt?30:0);
+ const baseW=1000, pad=style==='editorial'?75:style==='film'?30:55;
+ const photoW=baseW-pad*2,photoH=photoW*ratio,top=style==='film'?42:pad;
+ const footer=(style==='editorial'?240:style==='film'?160:185)+(fields.capturedAt?30:0);
  const baseH=top+photoH+footer;
  const scale=longEdge/Math.max(baseW,baseH);
  target.width=Math.round(baseW*scale);target.height=Math.round(baseH*scale);
  const ctx=target.getContext('2d');if(!ctx)throw Error('无法建立绘图画布，请重新打开页面。');
  ctx.scale(scale,scale);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
- const {paper,dark,ink,muted,accent}=frameTheme(img);
- drawFrameBackground(ctx,img,{baseW,baseH,pad,top,photoW,photoH},paper);ctx.drawImage(img,pad,top,photoW,photoH);
- if(state.color==='glass'){ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=1;ctx.strokeRect(pad-.5,top-.5,photoW+1,photoH+1)}
+ const {paper,dark,ink,muted,accent}=frameTheme(img,appearance);
+ drawFrameBackground(ctx,img,{baseW,baseH,pad,top,photoW,photoH},paper,appearance);ctx.drawImage(img,pad,top,photoW,photoH);
+ if(color==='glass'){ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=1;ctx.strokeRect(pad-.5,top-.5,photoW+1,photoH+1)}
  const y=top+photoH,lens=fields.lens;
- const identityOptions={camera:fields.camera,brand,brandMode,showCamera:state.visible.camera};
+ const identityOptions={camera:fields.camera,brand,brandMode,showCamera:visible.camera};
  const params=['focal','aperture','shutter','iso'].map(k=>fields[k]).filter(Boolean).join('  ·  ');
- if(state.style==='film'){
+ if(style==='film'){
  ctx.fillStyle='#a99056';for(let x=30;x<980;x+=40){ctx.fillRect(x,14,15,7)}
  fitText(ctx,title,pad,y+48,photoW*.64,29,ink,'Georgia, "Songti SC", serif');
  fitText(ctx,author?`© ${author}`:'',baseW-pad,y+48,photoW*.3,17,muted,'sans-serif','right');
  drawCameraLine(ctx,pad,y+86,photoW,muted,dark,{suffix:lens,...identityOptions});
  fitText(ctx,params,pad,y+125,photoW,23,accent,'monospace');
  fitText(ctx,fields.capturedAt,pad,y+153,photoW,16,muted,'monospace');
- }else if(state.style==='editorial'){
+ }else if(style==='editorial'){
  fitText(ctx,title,pad,y+61,photoW,46,ink,'Georgia, "Songti SC", serif');
  fitText(ctx,author?`摄影 / ${author}`:'',pad,y+98,photoW,18,muted);
  ctx.fillStyle=muted;ctx.fillRect(pad,y+124,photoW,1);
@@ -67,6 +68,7 @@ function draw(target,longEdge,source={}){
 function scheduleRender(){
  if(state.exporting)return;
  updateCustomization();
+ if(typeof saveActiveEdits==='function')saveActiveEdits();
  state.revision++;state.blob=null;clearTimeout(state.timer);$('export').disabled=true;
  if(!state.image||state.loading)return;
  try{draw($('preview'),1200)}catch(e){status(e.message,true);return}

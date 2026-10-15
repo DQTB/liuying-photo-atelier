@@ -16,8 +16,8 @@ function softenPixels(canvas,radius){
  for(let i=0,j=0;i<pixels.data.length;i+=4,j+=3){pixels.data[i]=a[j];pixels.data[i+1]=a[j+1];pixels.data[i+2]=a[j+2];pixels.data[i+3]=255}
  context.putImageData(pixels,0,0);
 }
-function glassBackdrop(img,baseW,baseH,pad,top,photoW,photoH){
- const strength=Number($('glassStrength').value),key=`${baseW}:${baseH}:${pad}:${top}:${strength}`;
+function glassBackdrop(img,baseW,baseH,pad,top,photoW,photoH,strength){
+ const key=`${baseW}:${baseH}:${pad}:${top}:${strength}`;
  if(state.glassCache?.image===img&&state.glassCache.key===key)return state.glassCache.canvas;
  const scale=320/Math.max(baseW,baseH),canvas=document.createElement('canvas');
  canvas.width=Math.max(1,Math.round(baseW*scale));canvas.height=Math.max(1,Math.round(baseH*scale));
@@ -41,10 +41,10 @@ function glassBackdrop(img,baseW,baseH,pad,top,photoW,photoH){
  c.putImageData(image,0,0);
  state.glassCache={image:img,key,canvas};return canvas;
 }
-function drawFrameBackground(ctx,img,geometry,paper){
+function drawFrameBackground(ctx,img,geometry,paper,appearance=captureAppearance()){
  const {baseW,baseH,pad,top,photoW,photoH}=geometry;
- if(state.color!=='glass'){ctx.fillStyle=paper;ctx.fillRect(0,0,baseW,baseH);return}
- ctx.drawImage(glassBackdrop(img,baseW,baseH,pad,top,photoW,photoH),0,0,baseW,baseH);
+ if(appearance.color!=='glass'){ctx.fillStyle=paper;ctx.fillRect(0,0,baseW,baseH);return}
+ ctx.drawImage(glassBackdrop(img,baseW,baseH,pad,top,photoW,photoH,appearance.glassStrength),0,0,baseW,baseH);
  const glow=ctx.createLinearGradient(0,0,baseW,baseH);glow.addColorStop(0,'rgba(255,255,255,.24)');glow.addColorStop(.5,'rgba(255,255,255,0)');glow.addColorStop(1,'rgba(255,255,255,.10)');
  ctx.fillStyle=glow;ctx.fillRect(0,0,baseW,baseH);
  ctx.strokeStyle='rgba(255,255,255,.65)';ctx.lineWidth=1.2;ctx.strokeRect(1,1,baseW-2,baseH-2);

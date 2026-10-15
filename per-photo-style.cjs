@@ -1,0 +1,54 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const root=path.resolve(process.argv[2]||__dirname);
+const elements=new Map(),styleButtons=['gallery','editorial','film','overlay'].map(style=>node({dataset:{style}}));
+function node(extra={}){const events={};return Object.assign({value:'',checked:true,hidden:false,disabled:false,scrollLeft:0,dataset:{},style:{setProperty(){}},classList:{toggle(){}},children:[],attributes:{},setAttribute(k,v){this.attributes[k]=v},removeAttribute(k){delete this.attributes[k]},append(...children){this.children.push(...children)},appendChild(child){this.append(child)},insertBefore(child){this.append(child)},replaceChildren(...children){this.children=children},addEventListener(k,fn){(events[k]??=[]).push(fn)},dispatch(k){for(const fn of events[k]||[])fn({target:this})},showModal(){},close(){},click(){this.onclick?.();this.dispatch('click')}},extra)}
+function element(id){if(!elements.has(id))elements.set(id,node({value:({title:'',author:'',brand:'auto',brandMode:'text',glassStrength:'55',overlayInk:'auto',overlayOpacity:'85',size:'1600'})[id]||''}));return elements.get(id)}
+function canvas(){const fills=[],texts=[],alphas=[],images=[];let image;const ctx={globalAlpha:1,scale(){},save(){},restore(){},fillRect(){fills.push(this.fillStyle)},strokeRect(){},drawImage(img){image=img;images.push(img?.name||'canvas')},fillText(text){texts.push(text);alphas.push(this.globalAlpha)},measureText(t){return {width:t.length*8}},createLinearGradient(){return {addColorStop(){}}},getImageData(x,y,w,h){const data=new Uint8ClampedArray(w*h*4);for(let i=0;i<data.length;i+=4){data.set(image?.testColor||[120,130,140],i);data[i+3]=255}return {data}},putImageData(){}};return node({width:0,height:0,getContext(){return ctx},toBlob(cb){cb(new Blob([JSON.stringify({width:this.width,height:this.height,fills,texts,alphas,images})],{type:'image/jpeg'}))}})}
+elements.set('preview',canvas());
+const document={getElementById:element,createElement:tag=>tag==='canvas'?canvas():node(),createTextNode:text=>({textContent:text}),querySelector:()=>node(),querySelectorAll:selector=>selector==='[data-style]'?styleButtons:[]};
+const context=vm.createContext({document,console,Blob,File:require("node:buffer").File,fflate:require(path.join(root,"fflate.js")),Map,WeakMap,Image:class{},URL:{createObjectURL:()=> 'blob:fixture',revokeObjectURL(){}},navigator:{},setTimeout:(fn,delay)=>delay===0?setTimeout(fn,0):1,clearTimeout(){},exifr:{parse:async()=>({Make:'SONY',Model:'ILCE-7M4',ISO:100,DateTimeOriginal:'2024:08:23 17:45:06'})}});
+const run=code=>vm.runInContext(code,context);
+for(const file of ['customize.js','glass.js'])run(fs.readFileSync(path.join(root,file),'utf8'));
+const app=fs.readFileSync(path.join(root,'app.js'),'utf8');run(app.slice(0,app.indexOf("document.querySelectorAll('[data-style]')")));
+run(fs.readFileSync(path.join(root,'batch.js'),'utf8'));
+run("decodeFile=async file=>file.image;thumbnail=async()=>null;state.demoImage={naturalWidth:1200,naturalHeight:800};batchState.demoImage=state.demoImage;state.logosReady=Promise.resolve()");
+const files=[1,2,3].map(n=>({name:`photo-${n}.jpg`,size:100,image:{name:`photo-${n}`,naturalWidth:1200,naturalHeight:800,testColor:[80*n,60,120]}}));context.fixtures=files;
+(async()=>{
+ await run('importPhotos(fixtures)');
+ run("state.style='film';state.color='#202220';$('glassStrength').value='30';$('brandMode').value='logo';state.visible.iso=false;$('show-iso').checked=false;scheduleRender()");
+ await run('activateRecord(2)');
+ assert.equal(run('state.style'),'gallery','changing photo 1 must not change photo 2 template');
+ assert.equal(run('state.color'),null,'photo 2 retains its own frame colour');
+ assert.equal(run('state.visible.iso'),true,'photo 2 retains its parameter visibility');
+ run("state.style='overlay';$('overlayInk').value='white';$('overlayOpacity').value='45';scheduleRender()");
+ await run('activateRecord(1)');
+ assert.equal(run('state.style'),'film');assert.equal(run('state.color'),'#202220');assert.equal(element('brandMode').value,'logo');assert.equal(run('state.visible.iso'),false);
+ await run('activateRecord(2)');assert.equal(run('state.style'),'overlay');assert.equal(element('overlayOpacity').value,'45');assert.equal(element('overlayInk').value,'white');
+ console.log('PASS switching photos restores independent template, colour, opacity, brand mode and visibility');
+ const film=JSON.parse(await (await run('jpegForRecord(batchState.photos[0],1600)')).text());
+ const overlay=JSON.parse(await (await run('jpegForRecord(batchState.photos[1],1600)')).text());
+ assert(film.fills.includes('#202220'),'film export uses photo 1 colour while photo 2 is active');assert(film.height>overlay.height,'film export retains its own frame geometry');
+ assert(!film.texts.some(t=>t.includes('ISO 100')));assert(overlay.texts.some(t=>t.includes('ISO 100')));assert(overlay.alphas.every(a=>a===0.45),'overlay export uses photo 2 opacity');
+ assert.equal(overlay.width,1600);assert.equal(overlay.height,1067);
+ console.log('PASS batch JPEG rendering uses each photo settings instead of current controls');
+ await run('activateRecord(3)');run("state.style='editorial';state.color='glass';$('glassStrength').value='90';scheduleRender()");
+ const glass=JSON.parse(await (await run('jpegForRecord(batchState.photos[2],1600)')).text());assert(glass.images.includes('canvas'),'glass export draws its own glass backdrop');
+ await run('activateRecord(1)');assert.equal(element('glassStrength').value,'30');await run('activateRecord(3)');assert.equal(element('glassStrength').value,'90');
+ console.log('PASS glass strength is independent and glass rendering is preserved');
+ element('applyAppearance').click();await run('activateRecord(1)');assert.equal(run('state.style'),'editorial');assert.equal(run('state.color'),'glass');
+ run("state.visible.camera=false;state.style='film';scheduleRender()");await run('activateRecord(2)');assert.equal(run('state.style'),'editorial');assert.equal(run('state.visible.camera'),true,'apply-all must copy settings independently');
+ console.log('PASS explicit apply-to-all preserves later independent edits');
+ await run('activateRecord(1)');await run('removeRecord(1)');await new Promise(resolve=>setImmediate(resolve));assert.notEqual(run('batchState.activeId'),1);assert.equal(run('state.style'),'editorial');
+ console.log('PASS removing the active photo retains the next photo settings');
+ await run('importPhotos([fixtures[0]],true)');assert.equal(run('batchState.photos[2].appearance.style'),'editorial');
+ run("state.style='overlay';$('overlayOpacity').value='65';scheduleRender()");
+ await run('exportBatch()');
+ const results=run('batchState.results');assert.equal(results.length,3);
+ const outputs=await Promise.all(results.map(async result=>JSON.parse(await result.blob.text())));
+ assert.equal(outputs[0].height,1067,'active overlay exported');assert(outputs[1].height>1067,'other photo retains framed style');assert(outputs[2].height>1067,'appended photo retains inherited style');
+ assert.equal(run('state.style'),'overlay','export restores active photo settings');
+ console.log('PASS append inherits current appearance and full batch ZIP export preserves independent styles');
+ await run('activateRecord(4)');run('removeRecord(2)');assert(element('frameScope').textContent.includes('第 2 张'),'scope follows queue renumbering');
+ console.log('PASS current-photo scope updates after removing an earlier photo');
+})().catch(error=>{console.error(error);process.exitCode=1});

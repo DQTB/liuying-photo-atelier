@@ -5,10 +5,11 @@ function activeRecord(){return batchState.photos.find(p=>p.id===batchState.activ
 function currentPhotoName(){const record=activeRecord();return record?record.file.name.replace(/\.[^.]+$/,'')+'_留影':'留影作品'}
 function saveActiveEdits(){
  const record=activeRecord();if(!record||state.loading)return;
- record.title=$('title').value.trim();record.fields=Object.fromEntries(keys.map(k=>[k,$(k).value.trim()]));record.brand=$('brand').value;
+ record.title=$('title').value.trim();record.fields=Object.fromEntries(keys.map(k=>[k,$(k).value.trim()]));record.brand=$('brand').value;record.appearance=captureAppearance();
 }
 function validPhotos(){return batchState.photos.filter(p=>p.ready&&!p.error)}
 function renderQueue(){
+ updatePhotoScope();
  $('choosePhoto').disabled=batchState.importing;
  $('choosePhoto').setAttribute('aria-busy',String(batchState.importing));
  $('choosePhoto').setAttribute('aria-label',batchState.photos.length?'更换照片，支持多选':'选择照片，支持多选');
@@ -19,7 +20,7 @@ function renderQueue(){
  $('addPhotos').disabled=batchState.importing;$('clearPhotos').disabled=batchState.importing;
  $('photo').disabled=batchState.importing;
  const many=batchState.photos.length>1,valid=validPhotos().length;
- $('batchExport').hidden=!many;$('batchNote').hidden=!many;$('applyTitle').hidden=!many;
+ $('batchExport').hidden=!many;$('batchNote').hidden=!many;$('applyTitle').hidden=!many;$('applyAppearance').hidden=!many;$('applyAppearance').disabled=batchState.importing||state.loading;
  $('batchExport').disabled=batchState.importing||state.loading||valid<1;
  $('batchExport').textContent=`批量生成 ${valid} 张作品 ↗`;
  $('export').classList.toggle('secondary',many);
@@ -37,7 +38,10 @@ function renderQueue(){
  strip.scrollLeft=scroll;
 }
 function releasePreview(img){if(img&&img!==batchState.demoImage&&img!==state.demoImage)img.src=''}
-function setPhotoInputsDisabled(disabled){for(const id of [...keys,'title','brand'])$(id).disabled=disabled}
+function setPhotoInputsDisabled(disabled){
+ for(const id of [...keys,'title','brand','author','brandMode','glassStrength','overlayInk','overlayOpacity',...keys.map(k=>'show-'+k)])$(id).disabled=disabled;
+ document.querySelectorAll('[data-style],[data-color]').forEach(button=>button.disabled=disabled);
+}
 async function decodeFile(file){
  const url=URL.createObjectURL(file);
  try{return await loadImage(url)}finally{URL.revokeObjectURL(url)}
@@ -56,7 +60,7 @@ async function activateRecord(id,providedImage=null){
   img=img||await decodeFile(record.file);
   if(token!==batchState.previewToken){releasePreview(img);return}
   releasePreview(state.image);state.image=img;state.glassCache=null;state.demo=false;
-  keys.forEach(k=>$(k).value=record.fields[k]||'');$('title').value=record.title;$('brand').value=record.brand;
+  keys.forEach(k=>$(k).value=record.fields[k]||'');$('title').value=record.title;$('brand').value=record.brand;restoreAppearance(record.appearance);
   $('fileName').textContent=`已选 ${batchState.photos.length} 张 · 点击预览更换照片`;
   $('demoLabel').textContent=`第 ${batchState.photos.indexOf(record)+1} / ${batchState.photos.length} 张 · 本机处理`;
   $('exifBadge').textContent=record.exifCount?`已读取 ${record.exifCount} 项`:'未检测到参数';
@@ -79,10 +83,10 @@ function removeRecord(id){
 }
 async function importPhotos(files,append=false){
  if(batchState.importing||state.exporting||!files.length)return;
- saveActiveEdits();if(!append){disposeRecords();showDemo()}
+ saveActiveEdits();const initialAppearance=captureAppearance();if(!append){disposeRecords();showDemo()}
  const available=MAX_PHOTOS-batchState.photos.length,selected=Array.from(files).slice(0,available),omitted=Math.max(0,files.length-selected.length);
  if(!selected.length){status('单批最多 50 张，请先移除部分照片或分批处理。',true);return}
- const records=selected.map(file=>({id:++batchState.serial,file,title:'',brand:'auto',fields:{},ready:false,error:null,exifCount:0,thumbURL:null}));
+ const records=selected.map(file=>({id:++batchState.serial,file,title:'',brand:'auto',appearance:copyAppearance(initialAppearance),fields:{},ready:false,error:null,exifCount:0,thumbURL:null}));
  batchState.photos.push(...records);batchState.importing=true;renderQueue();
  let added=0;
  try{
@@ -112,6 +116,12 @@ $('morePhotos').addEventListener('change',event=>{const files=Array.from(event.t
 $('addPhotos').onclick=()=>$('morePhotos').click();
 $('clearPhotos').onclick=()=>{disposeRecords();showDemo();status('已清空选片，原图仍保留在你的设备中。')};
 $('applyTitle').onclick=()=>{saveActiveEdits();const title=$('title').value.trim();batchState.photos.forEach(p=>p.title=title);status(title?'已将当前作品名应用到全部照片。':'已清空全部照片的作品名。')};
+$('applyAppearance').onclick=()=>{
+ if(state.loading||state.exporting||batchState.importing)return;
+ saveActiveEdits();const appearance=captureAppearance();
+ batchState.photos.forEach(photo=>photo.appearance=copyAppearance(appearance));
+ status('已将当前边框与水印样式应用到全部照片，作品名、品牌和拍摄参数保持各自设置。');
+};
 for(const id of [...keys,'title'])$(id).addEventListener('input',saveActiveEdits);$('brand').addEventListener('change',saveActiveEdits);
 function batchFileName(record,index){
  const stem=record.file.name.replace(/\.[^.]+$/,'').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'-').slice(0,90)||'照片';
@@ -121,7 +131,7 @@ async function jpegForRecord(record,longEdge){
  let img,canvas=document.createElement('canvas');
  try{
   img=await decodeFile(record.file);if(batchState.cancel)return null;
-  draw(canvas,longEdge,{image:img,fields:record.fields,title:record.title,author:$('author').value.trim(),brand:record.brand,brandMode:$('brandMode').value});
+  draw(canvas,longEdge,{image:img,fields:record.fields,title:record.title,brand:record.brand,appearance:record.appearance});
   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.94));
   if(!blob)throw Error('图片生成失败，请降低导出尺寸后重试。');return blob;
  }finally{canvas.width=canvas.height=1;if(state.glassCache?.image===img)state.glassCache=null;releasePreview(img)}
@@ -144,7 +154,7 @@ async function buildArchive(results){
 }
 async function exportBatch(){
  if(batchState.importing||state.loading||state.exporting)return;saveActiveEdits();
- const photos=validPhotos().map(p=>({...p,fields:{...p.fields}}));if(!photos.length)return;
+ const photos=validPhotos().map(p=>({...p,fields:{...p.fields},appearance:copyAppearance(p.appearance)}));if(!photos.length)return;
  state.exporting=true;await state.logosReady;
  state.revision++;clearTimeout(state.timer);batchState.cancel=false;batchState.results=[];
  if(batchState.zipURL)URL.revokeObjectURL(batchState.zipURL);batchState.zipURL=null;
@@ -177,7 +187,7 @@ async function exportBatch(){
   const complete=batchState.results.length===photos.length;
   $('batchHeading').textContent=complete&&!errors.length?'每个瞬间，都已成作。':batchState.cancel?'已停止，作品已保留。':'这批作品已处理。';
   $('batchProgressText').textContent=`已完成 ${batchState.results.length} / ${photos.length} 张`;
-  $('batchCurrent').textContent=complete?'每张作品均使用各自的拍摄参数。':batchState.cancel?'已完成的作品可继续分享或下载。':`未完成 ${photos.length-batchState.results.length} 张，请检查下方说明。`;
+  $('batchCurrent').textContent=complete?'每张作品均使用各自的边框、水印样式和拍摄参数。':batchState.cancel?'已完成的作品可继续分享或下载。':`未完成 ${photos.length-batchState.results.length} 张，请检查下方说明。`;
   $('batchMessage').textContent=batchState.cancel?'可下载已完成的作品，或关闭后重新批量生成。':complete?'':'部分照片未完成，可重新选择或分批处理。';
   reportBatchErrors(errors);
  }catch(e){$('batchMessage').textContent=`打包未完成：${e.message}。请减少照片数量或降低尺寸后重试。`}

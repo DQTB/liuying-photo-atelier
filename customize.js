@@ -43,15 +43,16 @@ function photoPalette(img){
  const result={paper,overlayInk:lowerCount&&lowerLight/lowerCount>.62?'#182018':'#fffdf5'};
  photoPalettes.set(img,result);canvas.width=canvas.height=1;return result;
 }
-function frameTheme(img=state.image){
- const paper=state.color==='glass'?'#e6ebe3':state.color==='match'?photoPalette(img).paper:state.color||(state.style==='film'?'#222920':state.style==='editorial'?'#eee8da':'#fffef9');
+function frameTheme(img=state.image,appearance=captureAppearance()){
+ const {style,color}=appearance;
+ const paper=color==='glass'?'#e6ebe3':color==='match'?photoPalette(img).paper:color||(style==='film'?'#222920':style==='editorial'?'#eee8da':'#fffef9');
  const rgb=paper.match(/[a-f\d]{2}/gi).map(v=>parseInt(v,16)/255).map(v=>v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4));
  const luminance=.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2],dark=luminance<.19;
  return {paper,dark,ink:dark?'#fffdf5':'#151b11',muted:dark?'#fffdf5':'#242e1e',accent:dark?'#fff0cd':'#32280e'};
 }
-function drawPhotoWatermark(ctx,img,baseW,baseH,{fields,title,author,brand,brandMode}){
- const choice=$('overlayInk').value,color=choice==='white'?'#fffdf5':choice==='black'?'#182018':photoPalette(img).overlayInk;
- const cameraVisible=state.visible.camera&&(fields.camera||(brand!=='auto'&&cameraBrands[brand]));
+function drawPhotoWatermark(ctx,img,baseW,baseH,{fields,title,author,brand,brandMode,appearance=captureAppearance()}){
+ const choice=appearance.overlayInk,color=choice==='white'?'#fffdf5':choice==='black'?'#182018':photoPalette(img).overlayInk;
+ const cameraVisible=appearance.visible.camera&&(fields.camera||(brand!=='auto'&&cameraBrands[brand]));
  const rows=[];
  if(title)rows.push({kind:'title',height:43});
  if(cameraVisible||fields.lens||author)rows.push({kind:'identity',height:32});
@@ -62,13 +63,13 @@ function drawPhotoWatermark(ctx,img,baseW,baseH,{fields,title,author,brand,brand
  // Scale the block down on wide panoramas; preserve every pixel of the photo.
  const unit=Math.min(1,baseH/500),margin=34,max=baseW/unit-margin*2;
  ctx.save();ctx.scale(unit,unit);
- ctx.globalAlpha=Number($('overlayOpacity').value)/100;
+ ctx.globalAlpha=appearance.overlayOpacity/100;
  ctx.shadowColor=color==='#fffdf5'?'rgba(0,0,0,.55)':'rgba(255,255,255,.65)';ctx.shadowBlur=4;ctx.shadowOffsetY=1;
  let y=baseH/unit-32-rows.reduce((sum,row)=>sum+row.height,0);
  for(const row of rows){
   y+=row.height;
   if(row.kind==='title')fitText(ctx,title,margin,y,max,30,color,'Georgia, "Songti SC", serif');
-  if(row.kind==='identity')drawCameraLine(ctx,margin,y,max,color,color==='#fffdf5',{camera:fields.camera,brand,brandMode,showCamera:state.visible.camera,prefix:author?`© ${author}`:'',suffix:fields.lens});
+  if(row.kind==='identity')drawCameraLine(ctx,margin,y,max,color,color==='#fffdf5',{camera:fields.camera,brand,brandMode,showCamera:appearance.visible.camera,prefix:author?`© ${author}`:'',suffix:fields.lens});
   if(row.kind==='params')fitText(ctx,params,margin,y,max,23,color,'sans-serif');
   if(row.kind==='time')fitText(ctx,fields.capturedAt,margin,y,max,17,color,'monospace');
  }
@@ -92,7 +93,23 @@ function tintedWordmark(key,color){
  const context=canvas.getContext('2d');context.drawImage(img,0,0,canvas.width,canvas.height);context.globalCompositeOperation='source-in';context.fillStyle=color;context.fillRect(0,0,canvas.width,canvas.height);
  wordmarkTints.set(cacheKey,canvas);return canvas;
 }
+function copyAppearance(appearance){return {...appearance,visible:{...appearance.visible}}}
+function captureAppearance(){
+ return {style:state.style,color:state.color,visible:{...state.visible},brandMode:$('brandMode').value,author:$('author').value.trim(),glassStrength:Number($('glassStrength').value),overlayInk:$('overlayInk').value,overlayOpacity:Number($('overlayOpacity').value)};
+}
+function restoreAppearance(appearance){
+ const saved=copyAppearance(appearance);
+ state.style=saved.style;state.color=saved.color;state.visible=saved.visible;
+ for(const id of ['brandMode','author','glassStrength','overlayInk','overlayOpacity'])$(id).value=String(saved[id]);
+ keys.forEach(key=>$('show-'+key).checked=state.visible[key]);
+}
+function updatePhotoScope(){
+ const record=typeof activeRecord==='function'?activeRecord():null;
+ $('frameScope').textContent=record?`正在编辑第 ${batchState.photos.indexOf(record)+1} 张 · 更改仅影响当前照片`:'选好喜欢的样式，再点击预览添加照片';
+}
 function updateCustomization(){
+ document.querySelectorAll('[data-style]').forEach(button=>{const active=button.dataset.style===state.style;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))});
+ updatePhotoScope();
  const identity=cameraIdentity(),mode=$('brandMode').value,brand=identity.key&&cameraBrands[identity.key];
  $('brandStatus').textContent=brand?`${$('brand').value==='auto'?'已识别':'已选择'} ${brand.name}${mode==='logo'&&!logoImages[identity.key]?' · Logo 尚不可用，暂用文字':''}`:mode==='logo'?'未识别到支持的品牌，暂用文字；也可手动选择品牌。':'品牌名称以文字显示。';
  $('colorName').textContent=state.color==='glass'?'':state.color==='match'?'随照片自动匹配':state.color?frameColors.find(c=>c[1]===state.color)?.[0]||'随模板':'随模板';
