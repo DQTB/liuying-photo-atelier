@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX='liuying-shell:'+encodeURIComponent(new URL(self.registration.scope).pathname)+':';
-const APP_CACHE=CACHE_PREFIX+'v6-20261015';
+const APP_CACHE=CACHE_PREFIX+'v7-20261015-parameters';
 const SHELL=['./','index.html','style.css','exifr.js','fflate.js','batch.js','customize.js','glass.js','app.js','pwa.js','demo.svg','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png',...['sony','canon','nikon','fujifilm','leica','apple'].map(brand=>`${brand}.svg`)];
 self.addEventListener('install',event=>{event.waitUntil((async()=>{const cache=await caches.open(APP_CACHE);await cache.addAll(SHELL);await self.skipWaiting()})())});
 self.addEventListener('activate',event=>{event.waitUntil((async()=>{

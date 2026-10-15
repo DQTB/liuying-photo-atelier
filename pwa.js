@@ -15,6 +15,7 @@ function readPreferences(){
 }
 function restorePreferences(){
  const p=readPreferences();
+ keys.forEach(key=>{if(typeof p.visible?.[key]==='boolean')state.visible[key]=p.visible[key];$('show-'+key).checked=state.visible[key]});
  if(['gallery','editorial','film'].includes(p.style)){state.style=p.style;document.querySelectorAll('[data-style]').forEach(button=>{const active=button.dataset.style===state.style;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))})}
  if(p.color==='glass'||frameColors.some(c=>c[1]===p.color))state.color=p.color;
  if(['logo','text'].includes(p.brandMode))$('brandMode').value=p.brandMode;
@@ -23,9 +24,9 @@ function restorePreferences(){
  scheduleRender();
 }
 function savePreferences(){
- try{localStorage.setItem('liuying-preferences-v1',JSON.stringify({style:state.style,color:state.color,brandMode:$('brandMode').value,author:$('author').value,glassStrength:Number($('glassStrength').value)}))}catch{}
+ try{localStorage.setItem('liuying-preferences-v1',JSON.stringify({visible:state.visible,style:state.style,color:state.color,brandMode:$('brandMode').value,author:$('author').value,glassStrength:Number($('glassStrength').value)}))}catch{}
 }
-document.querySelector('.controls').addEventListener('change',savePreferences);
+document.querySelector('.workspace').addEventListener('change',savePreferences);
 document.querySelectorAll('[data-style],[data-color]').forEach(button=>button.addEventListener('click',savePreferences));
 restorePreferences();
 if('serviceWorker' in navigator&&window.isSecureContext){

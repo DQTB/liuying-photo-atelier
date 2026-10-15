@@ -88,7 +88,7 @@ async function importPhotos(files,append=false){
    let img;
    try{
     if(record.file.size>60*1024*1024)throw Error('文件超过 60 MB，请选择较小的原片。');
-    const result=await Promise.allSettled([decodeFile(record.file),exifr.parse(record.file,{pick:['Make','Model','LensModel','FocalLength','FNumber','ExposureTime','ISO'],gps:false})]);
+    const result=await Promise.allSettled([decodeFile(record.file),exifr.parse(record.file,{pick:['Make','Model','LensModel','FocalLength','FNumber','ExposureTime','ISO','DateTimeOriginal','CreateDate'],reviveValues:false,gps:false})]);
     if(result[0].status==='rejected')throw result[0].reason;
     img=result[0].value;record.fields=metadataValues(result[1].status==='fulfilled'?result[1].value:null);record.exifCount=Object.values(record.fields).filter(Boolean).length;
     record.thumbURL=await thumbnail(img);record.ready=true;added++;

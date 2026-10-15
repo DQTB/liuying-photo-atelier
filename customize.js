@@ -24,8 +24,8 @@ function frameTheme(){
  const luminance=.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2],dark=luminance<.19;
  return {paper,dark,ink:dark?'#fffdf5':'#151b11',muted:dark?'#fffdf5':'#242e1e',accent:dark?'#fff0cd':'#32280e'};
 }
-function drawCameraLine(ctx,x,y,max,color,dark,{prefix='',suffix='',center=false,camera,brand,brandMode=$('brandMode').value}={}){
- const identity=cameraIdentity(camera,brand),logo=brandMode==='logo'&&identity.key&&logoImages[identity.key];
+function drawCameraLine(ctx,x,y,max,color,dark,{prefix='',suffix='',center=false,camera,brand,showCamera=true,brandMode=$('brandMode').value}={}){
+ const identity=showCamera?cameraIdentity(camera,brand):{key:null,label:'',model:''},logo=brandMode==='logo'&&identity.key&&logoImages[identity.key];
  if(!logo){fitText(ctx,[prefix,identity.label,suffix].filter(Boolean).join(' / '),x,y,max,19,color,'sans-serif',center?'center':'left');return}
  const ratio=logo.naturalWidth/logo.naturalHeight,h=Math.min(30,115/ratio),w=h*ratio;
  const text=[prefix,identity.model,suffix].filter(Boolean).join(' / '),gap=text?16:0;
