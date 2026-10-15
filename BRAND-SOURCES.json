@@ -1,0 +1,31 @@
+{
+  "sony.svg": {
+    "source": "https://www.sony.jp/header-footer/assets/img/GlobalHeader/logo.svg",
+    "page": "https://www.sony.jp/",
+    "note": "Original white SVG; displayed on dark backing."
+  },
+  "canon.png": {
+    "source": "https://global.canon/en/corporate/logo/img/logo_01.png",
+    "page": "https://global.canon/en/corporate/logo/"
+  },
+  "nikon.svg": {
+    "source": "https://www.nikon.com/company/corporate/brand/brand_symbol/img/logo.svg",
+    "page": "https://www.nikon.com/company/corporate/brand/brand_symbol/"
+  },
+  "fujifilm.svg": {
+    "source": "https://www.fujifilm.com/jp/themes/custom/fujifilm_com_g2/common/img/fujifilm_corporate_logo.svg",
+    "page": "https://www.fujifilm.com/jp/ja/about/brand/logo"
+  },
+  "leica.svg": {
+    "source": "https://leica-camera.com/themes/custom/leica_redesign_theme/logo.svg",
+    "page": "https://leica-camera.com/en-int"
+  },
+  "apple.svg": {
+    "source": "https://www.apple.com/",
+    "note": "Original globalnav Apple SVG path. ViewBox cropped from 0 0 14 44 to 0 12 14 17; path unchanged."
+  },
+  "wordmark_variants": {
+    "note": "Transparent monochrome wordmark derivatives preserve original path geometry. Nikon: black lettering only; Leica: white lettering only; Fujifilm: main wordmark without tagline; Canon: red vector paths only, excluding Global suffix; Sony and Apple: original paths. Lettering is tinted to match frame text at render time.",
+    "canon_vector_source": "https://global.canon/01cmn/img/common/logo.svg"
+  }
+}
