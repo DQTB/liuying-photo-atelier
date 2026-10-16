@@ -6,17 +6,18 @@ function node(extra={}){const events={};return Object.assign({value:'',checked:t
 function element(id){if(!elements.has(id))elements.set(id,node({value:({title:'',author:'',brand:'auto',brandMode:'text',glassStrength:'55',overlayInk:'auto',overlayOpacity:'85',size:'1600'})[id]||''}));return elements.get(id)}
 function canvas(){const fills=[],texts=[],alphas=[],images=[];let image;const ctx={globalAlpha:1,scale(){},save(){},restore(){},fillRect(){fills.push(this.fillStyle)},strokeRect(){},drawImage(img){image=img;images.push(img?.name||'canvas')},fillText(text){texts.push(text);alphas.push(this.globalAlpha)},measureText(t){return {width:t.length*8}},createLinearGradient(){return {addColorStop(){}}},getImageData(x,y,w,h){const data=new Uint8ClampedArray(w*h*4);for(let i=0;i<data.length;i+=4){data.set(image?.testColor||[120,130,140],i);data[i+3]=255}return {data}},putImageData(){}};return node({width:0,height:0,getContext(){return ctx},toBlob(cb){cb(new Blob([JSON.stringify({width:this.width,height:this.height,fills,texts,alphas,images})],{type:'image/jpeg'}))}})}
 elements.set('preview',canvas());
-const document={getElementById:element,createElement:tag=>tag==='canvas'?canvas():node(),createTextNode:text=>({textContent:text}),querySelector:()=>node(),querySelectorAll:selector=>selector==='[data-style]'?styleButtons:[]};
-const context=vm.createContext({document,console,Blob,File:require("node:buffer").File,fflate:require(path.join(root,"fflate.js")),Map,WeakMap,Image:class{},URL:{createObjectURL:()=> 'blob:fixture',revokeObjectURL(){}},navigator:{},setTimeout:(fn,delay)=>delay===0?setTimeout(fn,0):1,clearTimeout(){},exifr:{parse:async()=>({Make:'SONY',Model:'ILCE-7M4',ISO:100,DateTimeOriginal:'2024:08:23 17:45:06'})}});
+const document={documentElement:node(),getElementById:element,createElement:tag=>tag==='canvas'?canvas():node(),createTextNode:text=>({textContent:text}),querySelector:()=>node(),querySelectorAll:selector=>selector==='[data-style]'?styleButtons:[]};
+const context=vm.createContext({document,window:{},console,Blob,File:require("node:buffer").File,fflate:require(path.join(root,"fflate.js")),Map,WeakMap,Image:class{},URL:{createObjectURL:()=> 'blob:fixture',revokeObjectURL(){}},navigator:{},setTimeout:(fn,delay)=>delay===0?setTimeout(fn,0):1,clearTimeout(){},exifr:{parse:async()=>({Make:'SONY',Model:'ILCE-7M4',ISO:100,DateTimeOriginal:'2024:08:23 17:45:06'})}});
 const run=code=>vm.runInContext(code,context);
 for(const file of ['customize.js','glass.js'])run(fs.readFileSync(path.join(root,file),'utf8'));
-const app=fs.readFileSync(path.join(root,'app.js'),'utf8');run(app.slice(0,app.indexOf("document.querySelectorAll('[data-style]')")));
+const app=fs.readFileSync(path.join(root,'app.js'),'utf8');run(app);
 run(fs.readFileSync(path.join(root,'batch.js'),'utf8'));
 run("decodeFile=async file=>file.image;thumbnail=async()=>null;state.demoImage={naturalWidth:1200,naturalHeight:800};batchState.demoImage=state.demoImage;state.logosReady=Promise.resolve()");
 const files=[1,2,3].map(n=>({name:`photo-${n}.jpg`,size:100,image:{name:`photo-${n}`,naturalWidth:1200,naturalHeight:800,testColor:[80*n,60,120]}}));context.fixtures=files;
 (async()=>{
  await run('importPhotos(fixtures)');
- run("state.style='film';state.color='#202220';$('glassStrength').value='30';$('brandMode').value='logo';state.visible.iso=false;$('show-iso').checked=false;scheduleRender()");
+ styleButtons.find(button=>button.dataset.style==='film').click();
+ run("state.color='#202220';$('glassStrength').value='30';$('brandMode').value='logo';state.visible.iso=false;$('show-iso').checked=false;scheduleRender()");
  await run('activateRecord(2)');
  assert.equal(run('state.style'),'gallery','changing photo 1 must not change photo 2 template');
  assert.equal(run('state.color'),null,'photo 2 retains its own frame colour');
@@ -36,7 +37,7 @@ const files=[1,2,3].map(n=>({name:`photo-${n}.jpg`,size:100,image:{name:`photo-$
  const glass=JSON.parse(await (await run('jpegForRecord(batchState.photos[2],1600)')).text());assert(glass.images.includes('canvas'),'glass export draws its own glass backdrop');
  await run('activateRecord(1)');assert.equal(element('glassStrength').value,'30');await run('activateRecord(3)');assert.equal(element('glassStrength').value,'90');
  console.log('PASS glass strength is independent and glass rendering is preserved');
- element('applyAppearance').click();await run('activateRecord(1)');assert.equal(run('state.style'),'editorial');assert.equal(run('state.color'),'glass');
+ element('applyAppearance').click();assert.equal(run('batchState.photos[0].appearance.style'),'film','opening sync dialog must not overwrite other photos');element('confirmAppearance').click();await run('activateRecord(1)');assert.equal(run('state.style'),'editorial');assert.equal(run('state.color'),'glass');
  run("state.visible.camera=false;state.style='film';scheduleRender()");await run('activateRecord(2)');assert.equal(run('state.style'),'editorial');assert.equal(run('state.visible.camera'),true,'apply-all must copy settings independently');
  console.log('PASS explicit apply-to-all preserves later independent edits');
  await run('activateRecord(1)');await run('removeRecord(1)');await new Promise(resolve=>setImmediate(resolve));assert.notEqual(run('batchState.activeId'),1);assert.equal(run('state.style'),'editorial');
@@ -51,4 +52,12 @@ const files=[1,2,3].map(n=>({name:`photo-${n}.jpg`,size:100,image:{name:`photo-$
  console.log('PASS append inherits current appearance and full batch ZIP export preserves independent styles');
  await run('activateRecord(4)');run('removeRecord(2)');assert(element('frameScope').textContent.includes('第 2 张'),'scope follows queue renumbering');
  console.log('PASS current-photo scope updates after removing an earlier photo');
+ run("var pendingDecode;decodeFile=file=>new Promise(resolve=>pendingDecode=()=>resolve(file.image));var switchInFlight=activateRecord(3)");
+ assert.equal(styleButtons.find(button=>button.dataset.style==='film').disabled,false,'style must stay editable while a newly selected photo decodes');
+ styleButtons.find(button=>button.dataset.style==='film').click();
+ run('pendingDecode()');await run('switchInFlight');
+ assert.equal(run('state.style'),'film','style picked during loading must survive image decode');
+ assert.equal(run('activeRecord().appearance.style'),'film');
+ console.log('PASS style clicks during slow photo decoding are preserved for the selected photo');
+
 })().catch(error=>{console.error(error);process.exitCode=1});

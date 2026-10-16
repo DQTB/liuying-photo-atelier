@@ -93,6 +93,7 @@ function tintedWordmark(key,color){
  const context=canvas.getContext('2d');context.drawImage(img,0,0,canvas.width,canvas.height);context.globalCompositeOperation='source-in';context.fillStyle=color;context.fillRect(0,0,canvas.width,canvas.height);
  wordmarkTints.set(cacheKey,canvas);return canvas;
 }
+function appearanceLabel(appearance){return {gallery:'美术馆',editorial:'摄影画册',film:'胶片记忆',overlay:'透明水印'}[appearance?.style]||'美术馆'}
 function copyAppearance(appearance){return {...appearance,visible:{...appearance.visible}}}
 function captureAppearance(){
  return {style:state.style,color:state.color,visible:{...state.visible},brandMode:$('brandMode').value,author:$('author').value.trim(),glassStrength:Number($('glassStrength').value),overlayInk:$('overlayInk').value,overlayOpacity:Number($('overlayOpacity').value)};
@@ -105,7 +106,7 @@ function restoreAppearance(appearance){
 }
 function updatePhotoScope(){
  const record=typeof activeRecord==='function'?activeRecord():null;
- $('frameScope').textContent=record?`正在编辑第 ${batchState.photos.indexOf(record)+1} 张 · 更改仅影响当前照片`:'选好喜欢的样式，再点击预览添加照片';
+ $('frameScope').textContent=record?`第 ${batchState.photos.indexOf(record)+1} 张 · 仅编辑这一张`:'先选照片，样式逐张独立保存';
 }
 function updateCustomization(){
  document.querySelectorAll('[data-style]').forEach(button=>{const active=button.dataset.style===state.style;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))});

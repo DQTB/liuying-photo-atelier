@@ -1,22 +1,32 @@
 'use strict';
-const batchState={photos:[],activeId:null,serial:0,previewToken:0,importing:false,demoImage:state.demoImage||null,cancel:false,results:[],zipURL:null,locked:false};
+const batchState={photos:[],activeId:null,editorId:null,pendingAppearance:null,serial:0,previewToken:0,importing:false,demoImage:state.demoImage||null,cancel:false,results:[],zipURL:null,locked:false};
 const MAX_PHOTOS=50,MAX_OUTPUT_BYTES=96*1024*1024;
 function activeRecord(){return batchState.photos.find(p=>p.id===batchState.activeId)}
 function currentPhotoName(){const record=activeRecord();return record?record.file.name.replace(/\.[^.]+$/,'')+'_留影':'留影作品'}
 function saveActiveEdits(){
- const record=activeRecord();if(!record||state.loading)return;
- record.title=$('title').value.trim();record.fields=Object.fromEntries(keys.map(k=>[k,$(k).value.trim()]));record.brand=$('brand').value;record.appearance=captureAppearance();
+ const record=activeRecord();if(!record||batchState.editorId!==record.id)return;
+ record.title=$('title').value.trim();record.fields=Object.fromEntries(keys.map(k=>[k,$(k).value.trim()]));record.brand=$('brand').value;record.appearance=captureAppearance();updateQueueAppearance(record);
+}
+function updateQueueAppearance(record){
+ const label=$('photoStrip').querySelector?.(`[data-photo-style="${record.id}"]`);
+ if(label)label.textContent=appearanceLabel(record.appearance);
 }
 function validPhotos(){return batchState.photos.filter(p=>p.ready&&!p.error)}
 function renderQueue(){
  updatePhotoScope();
+ document.documentElement.classList.toggle('has-photos',batchState.photos.length>0);
+ const activeIndex=batchState.photos.findIndex(photo=>photo.id===batchState.activeId);
+ $('photoPosition').textContent=activeIndex<0?'示意预览':`${activeIndex+1} / ${batchState.photos.length}`;
+ $('previousPhoto').disabled=!batchState.photos.slice(0,activeIndex).some(photo=>photo.ready&&!photo.error);
+ $('nextPhoto').disabled=!batchState.photos.slice(activeIndex+1).some(photo=>photo.ready&&!photo.error);
+ $('photoNavigation').hidden=!batchState.photos.length;
  $('choosePhoto').disabled=batchState.importing;
  $('choosePhoto').setAttribute('aria-busy',String(batchState.importing));
  $('choosePhoto').setAttribute('aria-label',batchState.photos.length?'更换照片，支持多选':'选择照片，支持多选');
  const strip=$('photoStrip'),scroll=strip.scrollLeft;strip.replaceChildren();
  $('photoQueue').hidden=!batchState.photos.length;
  $('queueCount').textContent=`已选 ${batchState.photos.length} 张`;
- if(activeRecord()&&!state.loading){$('demoLabel').textContent=`第 ${batchState.photos.findIndex(p=>p.id===batchState.activeId)+1} / ${batchState.photos.length} 张 · 本机处理`;$('fileName').textContent=`已选 ${batchState.photos.length} 张 · 点击预览更换照片`}
+ if(activeRecord()&&!state.loading){$('demoLabel').textContent=`第 ${batchState.photos.findIndex(p=>p.id===batchState.activeId)+1} / ${batchState.photos.length} 张 · 本机处理`;$('fileName').textContent='轻点预览更换照片'}
  $('addPhotos').disabled=batchState.importing;$('clearPhotos').disabled=batchState.importing;
  $('photo').disabled=batchState.importing;
  const many=batchState.photos.length>1,valid=validPhotos().length;
@@ -31,7 +41,7 @@ function renderQueue(){
   preview.setAttribute('aria-label',`预览第 ${index+1} 张：${record.file.name}`);preview.setAttribute('aria-pressed',String(record.id===batchState.activeId));
   if(record.thumbURL){const img=new Image();img.src=record.thumbURL;img.alt='';preview.append(img)}else{const placeholder=document.createElement('span');placeholder.className='queue-placeholder';placeholder.textContent=record.error?'无法读取':'读取中…';preview.append(placeholder)}
   const filename=document.createElement('span');filename.className='queue-filename';filename.textContent=`${index+1}. ${record.file.name}`;preview.append(filename);
-  const info=document.createElement('small');info.textContent=record.error?'请移除或重选':record.ready?(record.exifCount?`EXIF ${record.exifCount} 项`:'无 EXIF，可补填'):'正在准备';preview.append(info);
+  const info=document.createElement('small');info.dataset.photoStyle=String(record.id);info.className='queue-style';info.textContent=record.error?'无法读取':record.ready?appearanceLabel(record.appearance):'读取中…';preview.append(info);
   preview.onclick=()=>activateRecord(record.id);item.append(preview);
   const remove=document.createElement('button');remove.className='queue-remove';remove.type='button';remove.textContent='×';remove.setAttribute('aria-label',`移除 ${record.file.name}`);remove.disabled=batchState.importing;remove.onclick=()=>removeRecord(record.id);item.append(remove);strip.append(item);
  }
@@ -54,25 +64,31 @@ async function thumbnail(img){
 async function activateRecord(id,providedImage=null){
  const record=batchState.photos.find(p=>p.id===id);if(!record?.ready||record.error){releasePreview(providedImage);return}
  saveActiveEdits();const token=++batchState.previewToken;
- batchState.activeId=id;state.loading=true;state.importId++;state.revision++;clearTimeout(state.timer);state.blob=null;$('export').disabled=true;setPhotoInputsDisabled(true);renderQueue();
+ batchState.activeId=id;batchState.editorId=null;state.loading=true;state.importId++;state.revision++;clearTimeout(state.timer);state.blob=null;$('export').disabled=true;keys.forEach(k=>$(k).value=record.fields[k]||'');$('title').value=record.title;$('brand').value=record.brand;restoreAppearance(record.appearance);batchState.editorId=id;setPhotoInputsDisabled(false);
+ document.querySelector('.stage').setAttribute('aria-busy','true');
+ $('demoLabel').textContent=`正在载入第 ${batchState.photos.indexOf(record)+1} 张…`;renderQueue();updateCustomization();
  let img=providedImage;
  try{
   img=img||await decodeFile(record.file);
   if(token!==batchState.previewToken){releasePreview(img);return}
   releasePreview(state.image);state.image=img;state.glassCache=null;state.demo=false;
-  keys.forEach(k=>$(k).value=record.fields[k]||'');$('title').value=record.title;$('brand').value=record.brand;restoreAppearance(record.appearance);
-  $('fileName').textContent=`已选 ${batchState.photos.length} 张 · 点击预览更换照片`;
+  $('fileName').textContent='轻点预览更换照片';
   $('demoLabel').textContent=`第 ${batchState.photos.indexOf(record)+1} / ${batchState.photos.length} 张 · 本机处理`;
   $('exifBadge').textContent=record.exifCount?`已读取 ${record.exifCount} 项`:'未检测到参数';
   if(!record.exifCount)$('metadata').open=true;
   if(!batchState.importing)status(record.exifCount?'当前照片参数已载入，可逐张检查与修改。':'当前照片没有读取到 EXIF，可手动补填。');
  }catch(e){record.error=e.message;status(`${record.file.name}：${e.message}`,true)}
- finally{if(token===batchState.previewToken){state.loading=false;setPhotoInputsDisabled(false);renderQueue();scheduleRender()}}
+ finally{if(token===batchState.previewToken){state.loading=false;document.querySelector('.stage').setAttribute('aria-busy','false');setPhotoInputsDisabled(false);renderQueue();scheduleRender()}}
 }
 function showDemo(){
- batchState.previewToken++;batchState.activeId=null;state.importId++;state.revision++;clearTimeout(state.timer);releasePreview(state.image);state.image=batchState.demoImage||state.demoImage;state.glassCache=null;state.demo=true;state.loading=false;setPhotoInputsDisabled(false);
+ batchState.previewToken++;batchState.activeId=null;batchState.editorId=null;state.importId++;state.revision++;clearTimeout(state.timer);releasePreview(state.image);state.image=batchState.demoImage||state.demoImage;state.glassCache=null;state.demo=true;state.loading=false;setPhotoInputsDisabled(false);
  keys.forEach(k=>$(k).value=demo[k]);$('title').value='山间来信';$('brand').value='auto';$('fileName').textContent='点击预览，选择照片';$('demoLabel').textContent='示意作品 · 非真实拍摄参数';$('exifBadge').textContent='示例参数';renderQueue();scheduleRender();
 }
+function stepPhoto(direction){
+ const index=batchState.photos.findIndex(photo=>photo.id===batchState.activeId);
+ for(let next=index+direction;next>=0&&next<batchState.photos.length;next+=direction){const photo=batchState.photos[next];if(photo.ready&&!photo.error){activateRecord(photo.id);return}}
+}
+$('previousPhoto').onclick=()=>stepPhoto(-1);$('nextPhoto').onclick=()=>stepPhoto(1);
 function disposeRecords(){for(const record of batchState.photos)if(record.thumbURL)URL.revokeObjectURL(record.thumbURL);batchState.photos=[]}
 function removeRecord(id){
  saveActiveEdits();const record=batchState.photos.find(p=>p.id===id);if(record?.thumbURL)URL.revokeObjectURL(record.thumbURL);
@@ -107,7 +123,7 @@ async function importPhotos(files,append=false){
  }finally{
   batchState.importing=false;renderQueue();scheduleRender();
   const errors=batchState.photos.filter(p=>p.error).length;
-  status(`已加入 ${added} 张照片${errors?`；${errors} 张无法读取，请移除或重选`:''}${omitted?`；超出单批限制的 ${omitted} 张未加入`:''}。${added?'点击缩略图可逐张查看。':''}`,errors>0||omitted>0);
+  status(`已加入 ${added} 张照片${errors?`；${errors} 张无法读取，请移除或重选`:''}${omitted?`；超出单批限制的 ${omitted} 张未加入`:''}。${added?'点击缩略图或用上一张、下一张逐张编辑，样式仅作用于当前照片。':''}`,errors>0||omitted>0);
  }
 }
 $('choosePhoto').onclick=()=>{if(!batchState.importing&&!state.exporting)$('photo').click()};
@@ -118,9 +134,16 @@ $('clearPhotos').onclick=()=>{disposeRecords();showDemo();status('已清空选�
 $('applyTitle').onclick=()=>{saveActiveEdits();const title=$('title').value.trim();batchState.photos.forEach(p=>p.title=title);status(title?'已将当前作品名应用到全部照片。':'已清空全部照片的作品名。')};
 $('applyAppearance').onclick=()=>{
  if(state.loading||state.exporting||batchState.importing)return;
- saveActiveEdits();const appearance=captureAppearance();
- batchState.photos.forEach(photo=>photo.appearance=copyAppearance(appearance));
- status('已将当前边框与水印样式应用到全部照片，作品名、品牌和拍摄参数保持各自设置。');
+ saveActiveEdits();batchState.pendingAppearance=captureAppearance();
+ $('applyAppearanceMessage').textContent=`把当前照片的“${appearanceLabel(batchState.pendingAppearance)}”同步到全部 ${batchState.photos.length} 张？每张照片的作品名、品牌和拍摄参数保持不变。`;
+ $('applyAppearanceDialog').showModal();
+};
+$('cancelAppearance').onclick=()=>{$('applyAppearanceDialog').close();batchState.pendingAppearance=null};
+$('confirmAppearance').onclick=()=>{
+ if(!batchState.pendingAppearance)return;
+ batchState.photos.forEach(photo=>photo.appearance=copyAppearance(batchState.pendingAppearance));
+ batchState.pendingAppearance=null;$('applyAppearanceDialog').close();renderQueue();
+ status('已同步样式到全部照片；之后仍可逐张单独调整。');
 };
 for(const id of [...keys,'title'])$(id).addEventListener('input',saveActiveEdits);$('brand').addEventListener('change',saveActiveEdits);
 function batchFileName(record,index){

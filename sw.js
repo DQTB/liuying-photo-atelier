@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX='liuying-shell:'+encodeURIComponent(new URL(self.registration.scope).pathname)+':';
-const APP_CACHE=CACHE_PREFIX+'v10-20261016-per-photo-appearance-r1';
-const SHELL=['./','index.html','style.css','exifr.js','fflate.js','batch.js','customize.js','glass.js','app.js','pwa.js','demo.svg','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png',...['sony','canon','nikon','fujifilm','leica','apple'].map(brand=>`${brand}.svg`)];
+const APP_CACHE=CACHE_PREFIX+'v11-20261016-compact-isolated-editor';
+const SHELL=['./','index.html','style.css?v=11','exifr.js','fflate.js','batch.js?v=11','customize.js?v=11','glass.js?v=11','app.js?v=11','pwa.js?v=11','demo.svg','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png',...['sony','canon','nikon','fujifilm','leica','apple'].map(brand=>`${brand}.svg`)];
 self.addEventListener('install',event=>{event.waitUntil((async()=>{const cache=await caches.open(APP_CACHE);await cache.addAll(SHELL);await self.skipWaiting()})())});
 self.addEventListener('activate',event=>{event.waitUntil((async()=>{
  const rootScope=new URL(self.registration.scope).pathname==='/';
@@ -27,7 +27,7 @@ self.addEventListener('fetch',event=>{
  const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==self.location.origin)return;
  if(event.request.mode==='navigate'){event.respondWith(navigationResponse(event.request));return}
  event.respondWith((async()=>{
-  try{const cache=await caches.open(APP_CACHE);const cached=await cache.match(event.request,{ignoreSearch:true});if(cached)return cached}catch{}
+  try{const cache=await caches.open(APP_CACHE);const cached=await cache.match(event.request,{ignoreSearch:false});if(cached)return cached}catch{}
   return fetch(event.request);
  })());
 });
